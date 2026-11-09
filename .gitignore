@@ -1,0 +1,8 @@
+__pycache__/
+*.sqlite3
+*.sqlite3-*
+.venv/
+.env
+.env.*
+wechat-vote.env
+wechat-vote-mvp-ubuntu.zip

@@ -1,0 +1,26 @@
+[Unit]
+Description=WeChat voting service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/clf/wechat/wechat-vote-mvp
+EnvironmentFile=/etc/wechat-vote.env
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONUTF8=1
+ExecStart=/usr/bin/python3 /root/clf/wechat/wechat-vote-mvp/server.py --host 0.0.0.0 --port 18080 --db /var/lib/wechat-vote/votes.sqlite3
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=15
+StateDirectory=wechat-vote
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target
