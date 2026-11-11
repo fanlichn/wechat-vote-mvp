@@ -110,6 +110,7 @@ class VotingTests(unittest.TestCase):
         self.assertEqual(result["submitted"], 6)
         for team in result["ranking"]:
             self.assertAlmostEqual(team["score"], 1.0)
+        self.assertEqual({team["name"]: team["vote_count"] for team in result["ranking"]}, {"甲队": 5, "乙队": 4, "丙队": 3})
 
     def test_phase_locking_and_pause(self):
         self.assertEqual(self.request("/api/admin/phase", {"phase": "open"}, True)[0], 400)

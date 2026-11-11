@@ -152,10 +152,16 @@ def make_server(host, port, db_path, password, trust_proxy=False):
                     result = {"phase": phase, "teams": teams, "submitted": db.execute("SELECT COUNT(*) FROM votes").fetchone()[0], "total": db.execute("SELECT COUNT(*) FROM members").fetchone()[0]}
                     if path == "/api/admin/state":
                         scores = {t["id"]: 0 for t in teams}
+                        vote_counts = dict.fromkeys(scores, 0)
                         for vote in db.execute("SELECT vote1,vote2,weight FROM votes"):
-                            scores[vote["vote1"]] += vote["weight"]
-                            scores[vote["vote2"]] += vote["weight"]
-                        result["ranking"] = sorted([{"id": t["id"], "name": t["name"], "score": scores[t["id"]]} for t in teams], key=lambda t: -t["score"])
+                            for team_id in (vote["vote1"], vote["vote2"]):
+                                scores[team_id] += vote["weight"]
+                                vote_counts[team_id] += 1
+                        ranking = [
+                            {"id": t["id"], "name": t["name"], "score": scores[t["id"]], "vote_count": vote_counts[t["id"]]}
+                            for t in teams
+                        ]
+                        result["ranking"] = sorted(ranking, key=lambda t: -t["score"])
                         result["members"] = [dict(r) for r in db.execute("SELECT m.id,m.name,m.team_id,m.code,(v.member_id IS NOT NULL) AS voted FROM members m LEFT JOIN votes v ON v.member_id=m.id ORDER BY m.id")]
                     self.reply(200, result)
                     return

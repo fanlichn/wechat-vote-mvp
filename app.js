@@ -75,7 +75,7 @@ function renderRanking() {
     if (previous === null || Math.abs(team.score - previous) > 1e-10) rank = i + 1;
     previous = team.score;
     const row = el('div', undefined, 'item rank');
-    row.append(el('span', `第 ${rank} 名 · ${team.name}`), el('strong', team.score.toFixed(4)));
+    row.append(el('span', `第 ${rank} 名 · ${team.name}`), el('strong', `${team.score.toFixed(4)}（${team.vote_count} 票）`));
     $('rankList').append(row);
   });
 }
