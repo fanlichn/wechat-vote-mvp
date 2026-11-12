@@ -14,6 +14,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parent
+JUDGE_VOTE_WEIGHT = 0.5
 
 
 def connect(path):
@@ -40,6 +41,17 @@ def initialize(path):
             vote2 INTEGER NOT NULL REFERENCES teams(id),
             weight REAL NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             CHECK(vote1 != vote2));
+        CREATE TABLE IF NOT EXISTS judges (
+            id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, code TEXT NOT NULL UNIQUE);
+        CREATE TABLE IF NOT EXISTS judge_votes (
+            judge_id INTEGER PRIMARY KEY REFERENCES judges(id),
+            vote1 INTEGER NOT NULL REFERENCES teams(id),
+            vote2 INTEGER NOT NULL REFERENCES teams(id),
+            weight REAL NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CHECK(vote1 != vote2));
+        CREATE VIEW IF NOT EXISTS all_ballots AS
+            SELECT vote1,vote2,weight FROM votes
+            UNION ALL SELECT vote1,vote2,weight FROM judge_votes;
         """)
         db.commit()
     finally:
@@ -149,11 +161,13 @@ def make_server(host, port, db_path, password, trust_proxy=False):
                     db.execute("BEGIN")
                     teams = [dict(r) for r in db.execute("SELECT t.id,t.name,COUNT(m.id) AS n FROM teams t LEFT JOIN members m ON m.team_id=t.id GROUP BY t.id ORDER BY t.id")]
                     phase = db.execute("SELECT phase FROM settings").fetchone()[0]
-                    result = {"phase": phase, "teams": teams, "submitted": db.execute("SELECT COUNT(*) FROM votes").fetchone()[0], "total": db.execute("SELECT COUNT(*) FROM members").fetchone()[0]}
+                    submitted = db.execute("SELECT COUNT(*) FROM all_ballots").fetchone()[0]
+                    total = db.execute("SELECT (SELECT COUNT(*) FROM members) + (SELECT COUNT(*) FROM judges)").fetchone()[0]
+                    result = {"phase": phase, "teams": teams, "submitted": submitted, "total": total}
                     if path == "/api/admin/state":
                         scores = {t["id"]: 0 for t in teams}
                         vote_counts = dict.fromkeys(scores, 0)
-                        for vote in db.execute("SELECT vote1,vote2,weight FROM votes"):
+                        for vote in db.execute("SELECT vote1,vote2,weight FROM all_ballots"):
                             for team_id in (vote["vote1"], vote["vote2"]):
                                 scores[team_id] += vote["weight"]
                                 vote_counts[team_id] += 1
@@ -163,7 +177,16 @@ def make_server(host, port, db_path, password, trust_proxy=False):
                         ]
                         result["ranking"] = sorted(ranking, key=lambda t: -t["score"])
                         result["members"] = [dict(r) for r in db.execute("SELECT m.id,m.name,m.team_id,m.code,(v.member_id IS NOT NULL) AS voted FROM members m LEFT JOIN votes v ON v.member_id=m.id ORDER BY m.id")]
+                        result["judges"] = [dict(r) for r in db.execute("SELECT j.id,j.name,j.code,(v.judge_id IS NOT NULL) AS voted FROM judges j LEFT JOIN judge_votes v ON v.judge_id=j.id ORDER BY j.id")]
                     self.reply(200, result)
+                    return
+                if method == "POST" and path == "/api/admin/judges":
+                    name = body.get("name")
+                    if not isinstance(name, str) or not 1 <= len(name.strip()) <= 40:
+                        raise Invalid("评委姓名需为 1～40 个字符")
+                    db.execute("INSERT INTO judges(name,code) VALUES (?,?)", (name.strip(), "J" + secrets.token_hex(8).upper()))
+                    db.commit()
+                    self.reply(200, {"ok": True})
                     return
                 if method == "POST" and path == "/api/admin/teams":
                     db.execute("BEGIN IMMEDIATE")
@@ -213,10 +236,14 @@ def make_server(host, port, db_path, password, trust_proxy=False):
                     if not isinstance(raw_code, str):
                         raise Invalid("投票码无效")
                     code = "".join(raw_code.split()).upper()
-                    member = db.execute("SELECT m.id,m.name,m.team_id,t.name AS team_name FROM members m JOIN teams t ON t.id=m.team_id WHERE m.code=?", (code,)).fetchone()
+                    is_judge = code.startswith("J")
+                    if is_judge:
+                        member = db.execute("SELECT j.id,j.name,NULL AS team_id,'评委' AS team_name,(v.judge_id IS NOT NULL) AS voted FROM judges j LEFT JOIN judge_votes v ON v.judge_id=j.id WHERE j.code=?", (code,)).fetchone()
+                    else:
+                        member = db.execute("SELECT m.id,m.name,m.team_id,t.name AS team_name,(v.member_id IS NOT NULL) AS voted FROM members m JOIN teams t ON t.id=m.team_id LEFT JOIN votes v ON v.member_id=m.id WHERE m.code=?", (code,)).fetchone()
                     if member is None:
                         raise Invalid("投票码无效，请向组织者核对", 401)
-                    voted = db.execute("SELECT 1 FROM votes WHERE member_id=?", (member["id"],)).fetchone() is not None
+                    voted = bool(member["voted"])
                     if path == "/api/identify":
                         self.reply(200, {"name": member["name"], "team_id": member["team_id"], "team_name": member["team_name"], "voted": voted})
                         return
@@ -230,8 +257,11 @@ def make_server(host, port, db_path, password, trust_proxy=False):
                         raise Invalid("请完整选择两支队伍")
                     if first == second or member["team_id"] in (first, second):
                         raise Invalid("请选择两支不同的其他队伍，不能投给自己队伍")
-                    count = db.execute("SELECT COUNT(*) FROM members WHERE team_id=?", (member["team_id"],)).fetchone()[0]
-                    db.execute("INSERT INTO votes(member_id,vote1,vote2,weight) VALUES (?,?,?,?)", (member["id"], first, second, 1 / (2 * count)))
+                    if is_judge:
+                        db.execute("INSERT INTO judge_votes(judge_id,vote1,vote2,weight) VALUES (?,?,?,?)", (member["id"], first, second, JUDGE_VOTE_WEIGHT))
+                    else:
+                        count = db.execute("SELECT COUNT(*) FROM members WHERE team_id=?", (member["team_id"],)).fetchone()[0]
+                        db.execute("INSERT INTO votes(member_id,vote1,vote2,weight) VALUES (?,?,?,?)", (member["id"], first, second, 1 / (2 * count)))
                     db.commit()
                     self.reply(200, {"ok": True, "message": "投票成功！你的两票已记录。"})
                     return

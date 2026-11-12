@@ -84,6 +84,7 @@ function logoutLocal() {
   adminState = null;
   sessionStorage.removeItem('voteAdminToken');
   $('teamList').replaceChildren();
+  $('judgeList').replaceChildren();
   $('rankList').replaceChildren();
   $('adminPanel').hidden = true;
   $('loginCard').hidden = false;
@@ -98,6 +99,12 @@ async function refreshAdmin() {
   $('loginCard').hidden = true;
   $('setupCard').hidden = adminState.phase === 'open';
   $('phaseButton').textContent = adminState.phase === 'open' ? '暂停投票' : '开放投票';
+  $('judgeList').replaceChildren();
+  for (const judge of adminState.judges) {
+    const row = el('div', undefined, 'item');
+    row.append(el('span', `${judge.name} · ${judge.voted ? '已投票' : '未投票'} · `), el('code', judge.code));
+    $('judgeList').append(row);
+  }
   $('teamList').replaceChildren();
   if (!adminState.teams.length) $('teamList').append(el('p', '请先添加至少三支队伍。', 'muted'));
   for (const team of adminState.teams) {
@@ -161,7 +168,7 @@ $('voteForm').addEventListener('submit', event => {
   if (!identity || identity.voted) return;
   if (!$('vote1').value || !$('vote2').value) return message('请完整选择两支队伍', true);
   const first = Number($('vote1').value), second = Number($('vote2').value);
-  if (first === second || [first, second].includes(identity.team_id)) return message('请选择两支不同的其他队伍', true);
+  if (first === second || [first, second].includes(identity.team_id)) return message('请选择两支不同的队伍，不能投给自己队伍', true);
   const member = identity;
   const code = verifiedCode;
   action($('submitButton'), async () => {
@@ -194,6 +201,16 @@ $('teamForm').addEventListener('submit', event => {
     $('teamForm').reset(); await refreshAdmin(); await refresh(); message('队伍已添加，成员投票码已生成');
   });
 });
+$('judgeForm').addEventListener('submit', event => {
+  event.preventDefault();
+  action(event.submitter, async () => {
+    await api('/api/admin/judges', {name: $('judgeName').value.trim()});
+    $('judgeForm').reset();
+    await refreshAdmin();
+    await refresh();
+    message('评委已添加，投票码已生成');
+  });
+});
 $('phaseButton').addEventListener('click', () => {
   if (!adminState) return;
   const phase = adminState.phase === 'open' ? 'closed' : 'open';
@@ -209,6 +226,7 @@ $('exportCodes').addEventListener('click', () => action($('exportCodes'), async 
   const cell = value => `"${String(value).replace(/^[=+@\-\t\r\n]/, "'$&").replace(/"/g, '""')}"`;
   const rows = [['队伍', '成员', '投票码', '投票状态']];
   for (const m of adminState.members) rows.push([adminState.teams.find(t => t.id === m.team_id).name, m.name, m.code, m.voted ? '已投票' : '未投票']);
+  for (const judge of adminState.judges) rows.push(['评委', judge.name, judge.code, judge.voted ? '已投票' : '未投票']);
   const blob = new Blob(['\ufeff' + rows.map(r => r.map(cell).join(',')).join('\r\n')], {type: 'text/csv;charset=utf-8'});
   const url = URL.createObjectURL(blob);
   const link = el('a'); link.href = url; link.download = '成员投票码.csv'; link.click();

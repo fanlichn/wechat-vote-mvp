@@ -11,22 +11,23 @@
 </head>
 <body><main>
 <h1>秩数Hack创想丨2026创新黑客松</h1>
-<p class="muted">凭成员专属投票码参与，每人两票，每支队伍拥有相同总投票权重。</p>
+<p class="muted">凭专属投票码参与，每人投给两支不同的队伍。</p>
 <div id="status" class="notice" role="status">正在连接服务器…</div>
 <nav class="tabs" aria-label="页面"><button class="active" data-page="vote">我要投票</button><button data-page="admin">管理</button></nav>
 <div id="message" class="notice" role="status" aria-live="polite"></div>
 <section id="vote" class="page">
-<div class="card"><h2>验证成员身份</h2><p class="muted">请输入组织者单独发给你的投票码。投票码代表你的投票资格，请勿转发。</p>
-<form id="identifyForm"><label for="code">我的投票码</label><input id="code" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40" placeholder="输入 16 位投票码" required><button class="primary full" id="identifyButton">验证身份</button></form></div>
+<div class="card"><h2>验证投票身份</h2><p class="muted">请输入组织者单独发给你的投票码。投票码代表你的投票资格，请勿转发。</p>
+<form id="identifyForm"><label for="code">我的投票码</label><input id="code" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40" required><button class="primary full" id="identifyButton">验证身份</button></form></div>
 <div id="ballot" class="card" hidden><h2>提交选票</h2><div id="identity" class="notice"></div><p class="muted">选择两支不同的其他队伍。提交后不能更改。</p>
 <form id="voteForm" autocomplete="off"><label for="vote1">第一票</label><select id="vote1" required></select><label for="vote2">第二票</label><select id="vote2" required></select><button id="submitButton" class="primary full">确认提交两票</button></form></div>
 </section>
 <section id="admin" class="page" hidden>
 <div id="loginCard" class="card"><h2>管理员登录</h2><p class="muted">请输入组织者配置的管理员密码。</p><form id="loginForm"><label for="password">管理员密码</label><input id="password" type="password" autocomplete="current-password" required><button class="primary full">登录</button></form></div>
 <div id="adminPanel" hidden>
-<div class="card"><div class="row"><h2>得分排行榜（仅管理员可见）</h2><button id="refreshResults">刷新排行</button></div><p class="muted">每票权重 = 1 ÷（2 × 本队成员数）。同分并列。</p><div id="rankList"></div></div>
+<div class="card"><div class="row"><h2>得分排行榜（仅管理员可见）</h2><button id="refreshResults">刷新排行</button></div><p class="muted">参赛成员每票权重 = 1 ÷（2 × 本队成员数），评委每票 0.5 分。同分并列。</p><div id="rankList"></div></div>
 <div class="card"><div class="row"><h2>活动管理</h2><button id="logout">退出登录</button></div><p class="muted">队伍数量不限，每队 1～3 人。建议录完全部队伍再开放投票；如需追加新队伍，请先暂停。已提交的选票保留且不能重投，先前投票者无法补投新增队伍。</p><div class="actions"><button class="primary" id="phaseButton">开放投票</button><button id="refreshAdmin">刷新状态</button><button id="exportCodes">导出投票码 CSV</button></div><p class="muted">导出的文件包含全部成员投票码，请只向成员单独发送自己的码。</p></div>
 <div class="card" id="setupCard"><h2>新增队伍与成员</h2><p class="muted">可添加三支以上队伍，1～3 人是每支队伍的人数限制。</p><form id="teamForm"><label for="teamName">队伍名称</label><input id="teamName" maxlength="60" required><label for="memberNames">成员姓名（每行一人，1～3 人）</label><textarea id="memberNames" required placeholder="张三&#10;李四"></textarea><button class="primary full">添加并生成成员投票码</button></form></div>
+<div class="card"><h2>评委与专属投票码</h2><p class="muted">评委可以投给任意两支不同的队伍，每票 0.5 分。</p><form id="judgeForm"><label for="judgeName">评委姓名</label><input id="judgeName" maxlength="40" required><button class="primary full">添加评委并生成投票码</button></form><div id="judgeList"></div></div>
 <div class="card"><h2>队伍与专属投票码</h2><div id="teamList"></div></div>
 </div></section>
 <p class="muted">所有人须访问同一个服务器地址。直接打开本地 HTML 文件无法参与共享投票。</p>

@@ -68,6 +68,29 @@ class VotingTests(unittest.TestCase):
         self.assertEqual(self.request("/api/admin/logout", {}, True)[0], 200)
         self.assertEqual(self.request("/api/admin/state", admin=True)[0], 401)
 
+    def test_judge_votes_without_joining_a_team(self):
+        state = self.seed()
+        self.open()
+        self.assertEqual(self.request("/api/admin/judges", {"name": "评委甲"})[0], 401)
+        self.assertEqual(self.request("/api/admin/judges", {"name": "评委甲"}, True)[0], 200)
+        judge = self.request("/api/admin/state", admin=True)[1]["judges"][0]
+        identity = self.request("/api/identify", {"code": judge["code"]})[1]
+        self.assertIsNone(identity["team_id"])
+        self.assertEqual(identity["team_name"], "评委")
+        first, second = [team["id"] for team in state["teams"][:2]]
+        ballot = {"code": judge["code"], "vote1": first, "vote2": second}
+        self.assertEqual(self.request("/api/vote", {**ballot, "vote2": first})[0], 400)
+        self.assertEqual(self.request("/api/vote", ballot)[0], 200)
+        self.assertEqual(self.request("/api/vote", ballot)[0], 409)
+        self.assertEqual(self.request("/api/vote", self.ballot(state))[0], 200)
+        result = self.request("/api/admin/state", admin=True)[1]
+        self.assertEqual(result["teams"], state["teams"])
+        self.assertEqual((result["submitted"], result["total"]), (2, 7))
+        self.assertTrue(result["judges"][0]["voted"])
+        self.assertEqual({t["id"]: (t["score"], t["vote_count"]) for t in result["ranking"]},
+                         {first: (0.5, 1), second: (1.0, 2), state["teams"][2]["id"]: (0.5, 1)})
+        self.assertNotIn("judges", self.request("/api/status")[1])
+
     def test_identity_and_duplicate_vote_across_clients(self):
         state = self.seed()
         self.open()
